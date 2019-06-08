@@ -1,0 +1,10 @@
+calcstats => https://cyber-dojo.org/kata/edit/6lpt85
+
+fizzbuzz => https://cyber-dojo.org/kata/edit/GhDFdh
+
+lcddigit => https://cyber-dojo.org/kata/edit/nb5tHa
+
+remove duplicate => https://cyber-dojo.org/kata/edit/tUFVzn
+
+unsplice => https://cyber-dojo.org/kata/edit/UZdTa2
+
