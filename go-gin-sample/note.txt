@@ -1,0 +1,6 @@
+init project module
+> cd school
+> go mod init github.com/piggyman007/school // create go.mod file
+> go mod tidy // load library and update go.mod & go.sum file
+
+

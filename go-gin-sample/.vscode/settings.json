@@ -1,0 +1,9 @@
+{
+	"editor.tabSize": 4,
+    "go.useLanguageServer": false,
+	"go.alternateTools": {
+		"go-langserver": []
+	},
+	"go.languageServerFlags": [],
+	"go.formatTool": "goimports",
+}
