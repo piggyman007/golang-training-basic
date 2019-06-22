@@ -1,121 +1,180 @@
 package main
 
 import (
-	"fmt"
+	"database/sql"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/lib/pq"
 )
 
+// Todo item
 type Todo struct {
 	ID     int    `json:"id"`
 	Title  string `json:"title"`
 	Status string `json:"status"`
 }
 
-// type Student struct {
-// 	Name string `json:"name" binding:"required"`
-// 	ID   int    `json:"id" binding:"required"`
-// }
+func handleError(c *gin.Context, err error) {
+	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+}
 
-var todos = map[int]Todo{}
+func getTodosHandler(c *gin.Context) {
+	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	defer db.Close()
 
-// func getStudentsHandler(c *gin.Context) {
-// 	ss := make([]Student, 0)
-// 	for _, s := range students {
-// 		ss = append(ss, s)
-// 	}
-// 	c.JSON(http.StatusOK, ss)
-// }
+	stmt, err := db.Prepare("SELECT id, title, status FROM todos;")
+	if err != nil {
+		handleError(c, err)
+		return
+	}
 
-// func postStudentsHandler(c *gin.Context) {
-// 	s := new(Student)
-// 	if err := c.ShouldBindJSON(s); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-// 	id := len(students) + 1
-// 	s.ID = id
-// 	students[id] = *s
-// 	c.JSON(http.StatusOK, s)
-// }
+	rows, err := stmt.Query()
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	todos := make([]Todo, 0)
+	for rows.Next() {
+		todo := new(Todo)
+		if err = rows.Scan(&todo.ID, &todo.Title, &todo.Status); err != nil {
+			handleError(c, err)
+			return
+		}
+
+		todos = append(todos, *todo)
+	}
+
+	c.JSON(http.StatusOK, todos)
+}
+
+func getTodosByIDHandler(c *gin.Context) {
+	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	defer db.Close()
+
+	stmt, err := db.Prepare("SELECT id, title, status FROM todos WHERE id = $1;")
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	row := stmt.QueryRow(c.Param("id"))
+
+	todo := new(Todo)
+	if err = row.Scan(&todo.ID, &todo.Title, &todo.Status); err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, todo)
+}
 
 func postTodosHandler(c *gin.Context) {
 	todo := new(Todo)
 
 	if err := c.ShouldBindJSON(todo); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		handleError(c, err)
 		return
 	}
 
-	todo.ID = 1
-	todos[todo.ID] = *todo
-	c.JSON(http.StatusAccepted, todos[todo.ID])
-}
-
-func getTodosByIDHandler(c *gin.Context) {
-	idParam := c.Param("id")
-	id, err := strconv.Atoi(idParam)
-
+	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		handleError(c, err)
+	}
+	defer db.Close()
+
+	query := `
+		INSERT INTO todos (title, status) VALUES ($1, $2) RETURNING id
+	`
+	row := db.QueryRow(query, todo.Title, todo.Status)
+	if err = row.Scan(&todo.ID); err != nil {
+		handleError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, todos[id])
-}
-
-func getTodosHandler(c *gin.Context) {
-	ts := make([]Todo, 0)
-
-	for _, todo := range todos {
-		ts = append(ts, todo)
-	}
-
-	c.JSON(http.StatusOK, ts)
+	c.JSON(http.StatusAccepted, todo)
 }
 
 func updateTodosByIDHandler(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.Atoi(idParam)
-
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if _, ok := todos[id]; !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("ID %d does not exists", id)})
+		handleError(c, err)
 		return
 	}
 
 	todo := new(Todo)
-	todo.ID = id
+
 	if err := c.ShouldBindJSON(todo); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		handleError(c, err)
+		return
+	}
+	todo.ID = id
+
+	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	if err != nil {
+		handleError(c, err)
+	}
+	defer db.Close()
+
+	stmt, err := db.Prepare(`
+		UPDATE todos 
+		SET 
+			status=$2,
+			title=$3
+		WHERE id=$1;
+	`)
+	if err != nil {
+		handleError(c, err)
 		return
 	}
 
-	todos[id] = *todo
-	c.JSON(http.StatusOK, todos[id])
+	if _, err = stmt.Exec(todo.ID, todo.Status, todo.Title); err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, todo)
 }
 
 func deleteTodosByIDHandler(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.Atoi(idParam)
-
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		handleError(c, err)
 		return
 	}
 
-	if _, ok := todos[id]; !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("ID %d does not exists", id)})
+	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	if err != nil {
+		handleError(c, err)
+	}
+	defer db.Close()
+
+	stmt, err := db.Prepare(`
+		DELETE FROM todos WHERE id=$1;
+	`)
+	if err != nil {
+		handleError(c, err)
 		return
 	}
 
-	delete(todos, id)
+	if _, err = stmt.Exec(id); err != nil {
+		handleError(c, err)
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
 
