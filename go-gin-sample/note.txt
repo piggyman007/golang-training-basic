@@ -4,3 +4,6 @@ init project module
 > go mod tidy // load library and update go.mod & go.sum file
 
 
+run school app
+> DATABASE_URL=postgres://cbrowfvv:7jKJjXxbXvUaD8hNvIwYdiUJXLh0Kgq4@satao.db.elephantsql.com:5432/cbrowfvv go run main.go
+
