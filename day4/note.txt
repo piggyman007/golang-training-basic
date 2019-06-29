@@ -1,2 +1,0 @@
-postgresql as a service > https://www.elephantsql.com/
-
